@@ -360,11 +360,18 @@ pub unsafe fn load_jvm_from_process() -> Result<(), LoadFromLibraryError> {
     }
 
     unsafe {
+        #[cfg(unix)]
         let lib = libloading::os::unix::Library::open(None::<&str>, libloading::os::unix::RTLD_NOW | libloading::os::unix::RTLD_GLOBAL).map_err(|e| {
             LoadFromLibraryError::LoadingSharedObjectFailed {
                 path: String::new(),
                 error: Box::new(e),
             }
+        })?;
+
+        #[cfg(windows)]
+        let lib = libloading::os::windows::Library::open_already_loaded("jvm.dll").map_err(|e| LoadFromLibraryError::LoadingSharedObjectFailed {
+            path: "jvm.dll".to_string(),
+            error: Box::new(e),
         })?;
 
         let JNI_CreateJavaVM_ptr = lib
