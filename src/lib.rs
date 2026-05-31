@@ -43,7 +43,7 @@ pub use linking::{JNI_CreateJavaVM, JNI_CreateJavaVM_with_string_args, JNI_GetCr
 pub use linking::{LoadFromLibraryError, load_jvm_from_library};
 
 #[cfg(all(feature = "loadjvm", feature = "std"))]
-pub use linking::{LoadFromJavaHomeError, LoadFromJavaHomeFolderError, load_jvm_from_java_home, load_jvm_from_java_home_folder};
+pub use linking::{LoadFromJavaHomeError, LoadFromJavaHomeFolderError, load_jvm_from_java_home, load_jvm_from_java_home_folder, load_jvm_from_process};
 
 extern crate alloc;
 #[cfg(feature = "std")]
@@ -4389,7 +4389,7 @@ impl JVMTIEnv {
             let res = self.GetSourceFileName(klass, &raw mut str);
             if !res.is_ok() {
                 if !str.is_null() {
-                    _= self.Deallocate(str);
+                    _ = self.Deallocate(str);
                 }
                 return Err(res);
             }
@@ -4400,13 +4400,13 @@ impl JVMTIEnv {
             }
 
             let Ok(val) = CStr::from_ptr(str).to_str() else {
-                _= self.Deallocate(str);
+                _ = self.Deallocate(str);
                 //CESU-8 my old friend
                 return Err(JVMTI_ERROR_NONE);
             };
 
             let copy = val.to_string();
-            _= self.Deallocate(str);
+            _ = self.Deallocate(str);
 
             Ok(copy)
         }
