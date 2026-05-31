@@ -349,6 +349,63 @@ impl From<LoadFromLibraryError> for String {
     }
 }
 
+#[allow(dead_code)]
+#[cfg(feature = "loadjvm")]
+#[cfg(not(feature = "dynlink"))]
+pub unsafe fn load_jvm_from_process() -> Result<(), LoadFromLibraryError> {
+    let mut guard = link_write();
+    if guard.is_some() {
+        drop(guard);
+        return Err(LoadFromLibraryError::AlreadyLoaded);
+    }
+
+    unsafe {
+        let lib = libloading::os::unix::Library::open(None::<&str>, libloading::os::unix::RTLD_NOW | libloading::os::unix::RTLD_GLOBAL).map_err(|e| {
+            LoadFromLibraryError::LoadingSharedObjectFailed {
+                path: String::new(),
+                error: Box::new(e),
+            }
+        })?;
+
+        let JNI_CreateJavaVM_ptr = lib
+            .get::<JNI_CreateJavaVM>(b"JNI_CreateJavaVM\0")
+            .map_err(|e| LoadFromLibraryError::JNICreateJavaVmNotFound {
+                path: String::new(),
+                error: Box::new(e),
+            })?
+            .as_raw_ptr();
+
+        if JNI_CreateJavaVM_ptr.is_null() {
+            return Err(LoadFromLibraryError::JNICreateJavaVmNotFound {
+                path: String::new(),
+                error: Box::new(libloading::Error::DlSymUnknown),
+            });
+        }
+
+        let JNI_GetCreatedJavaVMs_ptr = lib
+            .get::<JNI_GetCreatedJavaVMs>(b"JNI_GetCreatedJavaVMs\0")
+            .map_err(|e| LoadFromLibraryError::JNIGetCreatedJavaVMsNotFound {
+                path: String::new(),
+                error: Box::new(e),
+            })?
+            .as_raw_ptr();
+
+        if JNI_GetCreatedJavaVMs_ptr.is_null() {
+            return Err(LoadFromLibraryError::JNIGetCreatedJavaVMsNotFound {
+                path: String::new(),
+                error: Box::new(libloading::Error::DlSymUnknown),
+            });
+        }
+
+        // We are good to go!
+        core::mem::forget(lib);
+        *guard = Some(JNIDynamicLink::new(JNI_CreateJavaVM_ptr, JNI_GetCreatedJavaVMs_ptr));
+        drop(guard);
+    }
+
+    Ok(())
+}
+
 ///
 /// Convenience method to load the jvm from a path to libjvm.so or jvm.dll.
 ///
